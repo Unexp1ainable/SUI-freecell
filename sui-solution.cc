@@ -125,17 +125,33 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state)
         SearchState curr_state = stack.back();
         stack.pop_back();
 
-        if(visited[curr_state]) continue;
+        if(visited[curr_state]) {std::cout<<"already visited"<<std::endl;continue;};
 
         int curr_depth = depths[curr_state];
         if(curr_depth >= depth_limit_) {
             continue;
         }
+        // path reconstruction
         if(curr_state.isFinal()){
             std::cout<<depths[curr_state]<<std::endl;
             std::cout<<curr_state<<std::endl;
+            std::cout<<"======================================"<<std::endl;
+            
             std::vector<SearchAction> path;
-            return {};
+            for(int i = 0; i < curr_depth; i++){
+                auto last_move = actions.find(curr_state)->second;
+                std::cout<<last_move<<std::endl;
+                path.emplace_back(last_move);
+                
+                auto prev = prevState.find(curr_state)->second;
+                curr_state = std::move(prev);
+                std::cout<<curr_state<<std::endl;
+                
+                std::cout<<"-------------------------"<<std::endl;
+            }
+            std::cout<<path.size()<<std::endl;
+            std::reverse(path.begin(), path.end());
+            return path;
         }
 
 
@@ -146,6 +162,7 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state)
         visited[curr_state] = true;
         for(auto action : curr_state.actions()){
             SearchState adj_state = action.execute(curr_state);
+            if(visited[adj_state]) continue;
             stack.emplace_back(adj_state);
             actions.insert({adj_state, action});
             prevState.insert({adj_state, curr_state});
