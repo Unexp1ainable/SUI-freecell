@@ -2,6 +2,7 @@
 #include <iostream>
 #include "memusage.h"
 #include "search-strategies.h"
+#include <stack>
 
 /**
  * @brief Backtrack the path and return it
@@ -73,10 +74,89 @@ std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState& init_stat
     return {};
 }
 
+/*
 std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state) {
-    init_state.actions();
+    std::stack<std::vector<SearchState>> stack;
+    stack.push(std::vector<SearchState>{init_state});
+
+    std::vector<std::vector<SearchAction>> actions;
+    
+
+    int d = 0;
+    while(!stack.empty()) {
+        // processing current state
+        std::vector<SearchState> curr_level = stack.top();
+        
+        for(auto curr_state : curr_level) {
+            //slepa ulicka
+            if(curr_state.actions().size()==0) {
+                
+            }
+            actions.push_back(curr_state.actions());
+            std::vector<SearchState> nextLevel;
+            for(const auto& action : curr_state.actions()) {
+                SearchState adj_state = action.execute(curr_state);
+                nextLevel.push_back(adj_state);
+            }
+            stack.push(nextLevel);
+        }
+
+    }
+    return {};
+
+
+    
+}*/
+
+
+std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state) {
+    if(init_state.isFinal()){
+        return {};
+    }
+
+    std::vector<SearchState> stack{init_state};
+    std::map<SearchState, bool> visited;
+    std::map<SearchState, int> depths;
+    std::map<SearchState, SearchAction> actions;
+    std::map<SearchState, SearchState> prevState;
+    visited[init_state] = false;
+    depths[init_state] = 0;
+    while(!stack.empty()){
+        SearchState curr_state = stack.back();
+        stack.pop_back();
+
+        if(visited[curr_state]) continue;
+
+        int curr_depth = depths[curr_state];
+        if(curr_depth >= depth_limit_) {
+            continue;
+        }
+        if(curr_state.isFinal()){
+            std::cout<<depths[curr_state]<<std::endl;
+            std::cout<<curr_state<<std::endl;
+            std::vector<SearchAction> path;
+            return {};
+        }
+
+
+
+        std::cout<<curr_depth<<std::endl;
+        std::cout<<curr_state<<std::endl;
+        std::cout<<"----------------------------------------------"<<std::endl;
+        visited[curr_state] = true;
+        for(auto action : curr_state.actions()){
+            SearchState adj_state = action.execute(curr_state);
+            stack.emplace_back(adj_state);
+            actions.insert({adj_state, action});
+            prevState.insert({adj_state, curr_state});
+            depths.insert({adj_state, curr_depth+1});
+        }
+        
+        
+    }
     return {};
 }
+
 
 double StudentHeuristic::distanceLowerBound(const GameState& state) const {
     state.all_storage.back();
