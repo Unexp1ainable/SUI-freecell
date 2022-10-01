@@ -204,6 +204,7 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state)
             // this should never be printed
             std::cout << "PREKROCIL " << std::endl;
         }
+        // check whether we surpassed predicted limit of expanded states
         size_t x = curr_p->nbExpanded();
         if(x > num_elems) break;
     }
