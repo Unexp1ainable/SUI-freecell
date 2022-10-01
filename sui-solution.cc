@@ -101,50 +101,44 @@ std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState& init_stat
 using SearchAction_p = std::shared_ptr<const SearchAction>;
 using SearchState_p = std::shared_ptr<const SearchState>;
 
-inline bool isExplored(SearchState_p state, std::set<SearchState_p> discovered){
-    return std::find_if(discovered.begin(), discovered.end(), 
-            [&](SearchState_p s) {
-                    return *s == *state;
-                }) != discovered.end();
+inline bool isExplored(SearchState_p state, std::set<SearchState_p> discovered) {
+    return std::find_if(discovered.begin(), discovered.end(),
+                        [&](SearchState_p s) {
+                            return *s == *state;
+                        }) != discovered.end();
 }
 
 inline void setExplored(SearchState_p state, std::set<SearchState_p>& discovered) {
     discovered.insert(state);
 }
 
-
-bool operator==(const SearchState& a, const SearchState& b) {
-    return a.state_ == b.state_;
-}
-
-
 size_t max_states_count(size_t mem_limit) {
-    size_t search_state_s = sizeof(const SearchState) + 52*(sizeof(Card));
-    size_t search_state_ptr_s = sizeof(SearchState_p); //OK
-    size_t depth_s = sizeof(int); //OK
-    size_t pair_s_d = sizeof(std::pair<SearchState_p, int>); //OK
-    size_t stack_s = sizeof(std::stack<std::pair<SearchState_p, int>>); // OK
-    size_t stack_elem_s = depth_s + search_state_ptr_s + pair_s_d;// OK
+    size_t search_state_s = sizeof(const SearchState) + 52 * (sizeof(Card));
+    size_t search_state_ptr_s = sizeof(SearchState_p);                   // OK
+    size_t depth_s = sizeof(int);                                        // OK
+    size_t pair_s_d = sizeof(std::pair<SearchState_p, int>);             // OK
+    size_t stack_s = sizeof(std::stack<std::pair<SearchState_p, int>>);  // OK
+    size_t stack_elem_s = depth_s + search_state_ptr_s + pair_s_d;       // OK
 
-    size_t set_elem_s = search_state_ptr_s;// OK
-    size_t set_s = sizeof(std::set<SearchState_p>);//OK
+    size_t set_elem_s = search_state_ptr_s;          // OK
+    size_t set_s = sizeof(std::set<SearchState_p>);  // OK
 
-    size_t pair_s_as = sizeof(std::pair<SearchState_p, std::pair<SearchAction_p,SearchState_p>>);
-    size_t pair_as = sizeof(std::pair<SearchAction_p,SearchState_p>);
+    size_t pair_s_as = sizeof(std::pair<SearchState_p, std::pair<SearchAction_p, SearchState_p>>);
+    size_t pair_as = sizeof(std::pair<SearchAction_p, SearchState_p>);
     size_t search_action_ptr_s = sizeof(SearchAction_p);
-    size_t map_elem_s = pair_s_as + 2*search_state_ptr_s + pair_as + search_action_ptr_s;
-    size_t map_s = sizeof(std::map<SearchState_p, std::pair<SearchAction_p,SearchState_p>>);
+    size_t map_elem_s = pair_s_as + 2 * search_state_ptr_s + pair_as + search_action_ptr_s;
+    size_t map_s = sizeof(std::map<SearchState_p, std::pair<SearchAction_p, SearchState_p>>);
 
-    size_t num_states = (mem_limit - getCurrentRSS() - stack_s - set_s - map_s) / 
-                (stack_elem_s  + search_state_s + map_elem_s);
+    size_t num_states = (mem_limit - getCurrentRSS() - stack_s - set_s - map_s) /
+                        (stack_elem_s + search_state_s + map_elem_s);
 
-    std::cout<<"MAP "<<map_s<<std::endl;
-    std::cout<<"SET "<<set_s<<std::endl;
-    std::cout<<"STACK "<<set_s<<std::endl;
-    std::cout<<"MAP_ELEM "<<map_elem_s<<std::endl;
-    std::cout<<"SET_ELEM "<<set_elem_s<<std::endl;
-    std::cout<<"STACK_ELEM "<<stack_elem_s<<std::endl;
-    return num_states; // reserve 10 percent for arbitrary variables and stuff
+    std::cout << "MAP " << map_s << std::endl;
+    std::cout << "SET " << set_s << std::endl;
+    std::cout << "STACK " << set_s << std::endl;
+    std::cout << "MAP_ELEM " << map_elem_s << std::endl;
+    std::cout << "SET_ELEM " << set_elem_s << std::endl;
+    std::cout << "STACK_ELEM " << stack_elem_s << std::endl;
+    return num_states;  // reserve 10 percent for arbitrary variables and stuff
 }
 
 std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state) {
@@ -153,20 +147,19 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state)
     }
 
     auto num_elems = max_states_count(mem_limit_);
-    std::cout<<"NUM_ELEMS: "<<num_elems<<std::endl;
+    std::cout << "NUM_ELEMS: " << num_elems << std::endl;
     // stack of pairs (ss, depth)
     std::stack<std::pair<SearchState_p, int>> stack;
     stack.push({{std::make_shared<const SearchState>(init_state)}, 0});
     // closed set
     std::set<SearchState_p> explored;
     // path traversed
-    std::map<SearchState_p, std::pair<SearchAction_p,SearchState_p>> history;
-    
+    std::map<SearchState_p, std::pair<SearchAction_p, SearchState_p>> history;
 
     int curr_depth;
     SearchState_p curr_p, adj_p;
     SearchAction_p action_p;
-    while(!stack.empty()){
+    while (!stack.empty()) {
         // pop top state from stack
         curr_p = stack.top().first;
         curr_depth = stack.top().second;
@@ -186,17 +179,18 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state)
                 path.push_back(*(prev.first));
             }
             std::reverse(path.begin(), path.end());
-            std::cout<<"MEMORY CAPACITY: "<<mem_limit_<<std::endl;
-            std::cout<<"MEMORY SPOTREBOVANE: "<<(getCurrentRSS())<<std::endl;
-            std::cout<<"MEMORY REZERVA: "<<(mem_limit_ - getCurrentRSS())<<std::endl<<std::endl;
-            std::cout<<curr_p->nbExpanded()<<std::endl;
-            
+            std::cout << "MEMORY CAPACITY: " << mem_limit_ << std::endl;
+            std::cout << "MEMORY SPOTREBOVANE: " << (getCurrentRSS()) << std::endl;
+            std::cout << "MEMORY REZERVA: " << (mem_limit_ - getCurrentRSS()) << std::endl
+                      << std::endl;
+            std::cout << curr_p->nbExpanded() << std::endl;
+
             return path;
         }
 
         // set current state as already explored
         setExplored(curr_p, explored);
-        std::cout<<"NB "<<curr_p->nbExpanded()<<std::endl;
+        std::cout << "NB " << curr_p->nbExpanded() << std::endl;
         // push adjacent states to stack
         for (auto action : curr_p->actions()) {
             const SearchState adj_state = action.execute(*curr_p);
@@ -210,11 +204,12 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state)
                 continue;
             }
             history.insert({adj_p, {action_p, curr_p}});
-            stack.push({adj_p,curr_depth+1});
-         }    
-         std::cout<<"MEMORY REZERVA: "<<(mem_limit_ - getCurrentRSS())<<std::endl<<std::endl;
-         std::cout<<"___________________________________________________"<<std::endl;
-         //if(curr_p->nbExpanded() > num_elems) break;
+            stack.push({adj_p, curr_depth + 1});
+        }
+        std::cout << "MEMORY REZERVA: " << (mem_limit_ - getCurrentRSS()) << std::endl
+                  << std::endl;
+        std::cout << "___________________________________________________" << std::endl;
+        // if(curr_p->nbExpanded() > num_elems) break;
     }
     return {};
 }
