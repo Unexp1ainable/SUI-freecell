@@ -118,14 +118,14 @@ inline void setExplored(SearchState_p state, std::set<SearchState_p>& discovered
 
 size_t max_states_count(size_t mem_limit) {
     size_t search_state_s = sizeof(const SearchState) + 52 * (sizeof(Card));
-    size_t search_state_ptr_s = sizeof(SearchState_p);                   // OK
-    size_t depth_s = sizeof(int);                                        // OK
-    size_t pair_s_d = sizeof(std::pair<SearchState_p, int>);             // OK
-    size_t stack_s = sizeof(std::stack<std::pair<SearchState_p, int>>);  // OK
-    size_t stack_elem_s = depth_s + search_state_ptr_s + pair_s_d;       // OK
+    size_t search_state_ptr_s = sizeof(SearchState_p);                   
+    size_t depth_s = sizeof(int);                                        
+    size_t pair_s_d = sizeof(std::pair<SearchState_p, int>);             
+    size_t stack_s = sizeof(std::stack<std::pair<SearchState_p, int>>);  
+    size_t stack_elem_s = depth_s + search_state_ptr_s + pair_s_d;      
 
-    size_t set_elem_s = search_state_ptr_s;           // OK
-    size_t set_s = sizeof(std::set<SearchState_p>);  // OK
+    size_t set_elem_s = search_state_ptr_s;          
+    size_t set_s = sizeof(std::set<SearchState_p>);  
 
     size_t pair_s_as = sizeof(std::pair<SearchState_p, std::pair<SearchAction_p, SearchState_p>>);
     size_t search_action_s = sizeof(const SearchAction);
@@ -136,7 +136,7 @@ size_t max_states_count(size_t mem_limit) {
 
     size_t num_states = (mem_limit - getCurrentRSS() - stack_s - set_s - map_s) / 
                 (set_elem_s +stack_elem_s  + map_elem_s+ search_state_s);
-    return num_states*0.8;  // reserve 10 percent for arbitrary variables and stuff
+    return num_states*0.8;  
 }
 
 std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state) {
@@ -183,10 +183,11 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state)
 
         // set current state as already explored
         setExplored(curr_p, explored);
-        size_t x = curr_p->nbExpanded();
+        
         // push adjacent states to stack
         for (auto action : curr_p->actions()) {
             const SearchState adj_state = action.execute(*curr_p);
+            
 
             adj_p = std::make_shared<const SearchState>(adj_state);
             action_p = std::make_shared<const SearchAction>(action);
@@ -201,8 +202,9 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state)
         }
         if(getCurrentRSS() > mem_limit_) {
             // this should never be printed
-            std::cout << "PREKROCIL " << x << std::endl;
+            std::cout << "PREKROCIL " << std::endl;
         }
+        size_t x = curr_p->nbExpanded();
         if(x > num_elems) break;
     }
     return {};
