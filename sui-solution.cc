@@ -113,9 +113,7 @@ inline void setExplored(SearchState_p state, std::set<SearchState_p>& discovered
 }
 
 
-bool operator==(const SearchState& a, const SearchState& b) {
-    return a.state_ == b.state_;
-}
+
 
 
 size_t max_states_count(size_t mem_limit) {
@@ -136,7 +134,7 @@ size_t max_states_count(size_t mem_limit) {
     size_t map_s = sizeof(std::map<SearchState_p, std::pair<SearchAction_p,SearchState_p>>);
 
     size_t num_states = (mem_limit - getCurrentRSS() - stack_s - set_s - map_s) / 
-                (stack_elem_s  + search_state_s + map_elem_s);
+                (set_elem_s +stack_elem_s  + search_state_s + map_elem_s);
 
     std::cout<<"MAP "<<map_s<<std::endl;
     std::cout<<"SET "<<set_s<<std::endl;
