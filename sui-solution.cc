@@ -3,10 +3,11 @@
 #include <iostream>
 #include <optional>
 #include <set>
-#include <sstream>
+#include <queue>
 #include <stack>
 #include "memusage.h"
 #include "search-strategies.h"
+#include <sstream>
 
 constexpr int CARD_COUNT = 52;
 // constexpr int TOTAL_CARD_PTRS = (nb_stacks + nb_freecells + nb_homes + nb_stacks + nb_freecells);
@@ -112,12 +113,24 @@ inline void setExplored(SearchState_p state, std::set<SearchState_p>& discovered
     discovered.insert(state);
 }
 
-
+std::string hash(SearchState state) {
+    std::ostringstream ss;
+    ss << state;
+    /*for(auto a : state.actions()){
+        ss<<a;
+    }*/
+    std::hash<std::string> hash;
+    std::string h = ss.str();
+    ss.str("");
+    std::ostringstream ss2;
+    ss2<<hash(h);
+    return ss2.str();
+}
 
 
 
 size_t max_states_count(size_t mem_limit) {
-    size_t search_state_s = sizeof(const SearchState) + 52 * (sizeof(Card));
+    size_t search_state_s = sizeof(const SearchState) + CARD_COUNT * (sizeof(Card));
     size_t search_state_ptr_s = sizeof(SearchState_p);                   
     size_t depth_s = sizeof(int);                                        
     size_t pair_s_d = sizeof(std::pair<SearchState_p, int>);             
@@ -145,7 +158,6 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state)
     }
 
     auto num_elems = max_states_count(mem_limit_);
-    std::cout << "NUM_ELEMS: " << num_elems << std::endl;
     // stack of pairs (ss, depth)
     std::stack<std::pair<SearchState_p, int>> stack;
     stack.push({{std::make_shared<const SearchState>(init_state)}, 0});
@@ -177,7 +189,6 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state)
                 path.push_back(*(prev.first));
             }
             std::reverse(path.begin(), path.end());
-            std::cout<<"SUCCESS"<<std::endl;
             return path;
         }
 
@@ -201,8 +212,8 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state)
             stack.push({adj_p, curr_depth + 1});
         }
         if(getCurrentRSS() > mem_limit_) {
-            // this should never be printed
-            std::cout << "PREKROCIL " << std::endl;
+            // this should never be reached, but just to be sure...
+            break;
         }
         // check whether we surpassed predicted limit of expanded states
         size_t x = curr_p->nbExpanded();
@@ -239,7 +250,96 @@ double StudentHeuristic::distanceLowerBound(const GameState& state) const {
     return turns;
 }
 
+typedef struct Node {
+    SearchState_p state_p;
+    double g;
+    double f;
+} Node;
+
+inline bool isOpen(SearchState_p state, std::vector<Node> open_set) {
+    return std::find_if(open_set.begin(), open_set.end(),
+                        [&](Node n) {
+                            return *(n.state_p) == *state;
+                        }) != open_set.end();
+}
+
+inline std::vector<Node>::iterator getThis(SearchState_p state, std::vector<Node> open_set) {
+    return std::find_if(open_set.begin(), open_set.end(),
+                        [&](Node n) {
+                            return *(n.state_p) == *state;
+                        });
+}
+
+Node getTop(std::vector<Node>& open_set) {
+    SearchState_p curr_state, min_state;
+    auto min_it = open_set.begin();
+    Node node_min = *min_it;
+    Node curr_node;
+    for (auto it = open_set.begin(); it != open_set.end(); it++) {
+        curr_node = *it;
+        if (curr_node.f < node_min.f) {
+            min_state = curr_state;
+            min_it = it;
+        }
+    }
+    open_set.erase(min_it);
+    return node_min;
+}
+
+
+
 std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
-    init_state.actions();
+    if (init_state.isFinal()) {
+        return {};
+    }
+    // priority queue sorted by f
+    std::vector<Node> open_set{
+        {std::make_shared<const SearchState>(init_state), 0., 0.}
+    };
+    std::set<SearchState_p> explored;
+
+    SearchState_p curr_state, adj_p, prev_p;
+    SearchAction_p action_p;
+
+    Node curr_node;
+    while(!open_set.empty()) {
+        curr_node = getTop(open_set); // get top object by f value
+        curr_state = curr_node.state_p;
+
+        if(curr_state->isFinal()){
+            return{};
+        }
+
+        setExplored(curr_state, explored);
+
+        for (auto action : curr_state->actions()) {
+            std::cout<<"---------------------------------"<<std::endl;
+
+            const SearchState adj_state = action.execute(*curr_state);
+            std::cout<<hash(adj_state)<<std::endl;
+            
+            adj_p = std::make_shared<const SearchState>(adj_state);
+            if (isExplored(adj_p, explored)) {
+                continue;
+            }
+            // tu je zatial pouzita heuristika 0
+            Node adj_node = {adj_p, curr_node.g+1, curr_node.g + 1+ 0};// + compute_heuristic(*adj_p, *heuristic_)};
+            
+            // if this adjacent state is already in OPEN set then we might replace it if this one is better
+            if(isOpen(adj_p, open_set)) {
+                auto found_node_it = getThis(adj_p, open_set);
+                // if this state is better than replace it
+                if(adj_node.g < found_node_it->g) {
+                    open_set.erase(found_node_it);
+                    open_set.push_back(adj_node);
+                }else{
+                    continue;
+                }
+            }else{
+                open_set.push_back(adj_node);
+            }
+        }
+    }
     return {};
 }
+
