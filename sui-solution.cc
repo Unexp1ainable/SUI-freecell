@@ -313,10 +313,7 @@ std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
         setExplored(curr_state, explored);
 
         for (auto action : curr_state->actions()) {
-            std::cout<<"---------------------------------"<<std::endl;
-
             const SearchState adj_state = action.execute(*curr_state);
-            std::cout<<hash(adj_state)<<std::endl;
             
             adj_p = std::make_shared<const SearchState>(adj_state);
             if (isExplored(adj_p, explored)) {
