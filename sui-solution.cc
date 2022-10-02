@@ -320,7 +320,7 @@ std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
                 continue;
             }
             // tu je zatial pouzita heuristika 0
-            Node adj_node = {adj_p, curr_node.g+1, curr_node.g + 1+ 0};// + compute_heuristic(*adj_p, *heuristic_)};
+            Node adj_node = {adj_p, curr_node.g+1, curr_node.g + 1 + compute_heuristic(*adj_p, *heuristic_)};
             
             // if this adjacent state is already in OPEN set then we might replace it if this one is better
             if(isOpen(adj_p, open_set)) {
