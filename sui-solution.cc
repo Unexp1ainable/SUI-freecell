@@ -302,11 +302,15 @@ std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
     SearchAction_p action_p;
 
     Node curr_node;
+    int x = 0;
     while(!open_set.empty()) {
+        x++;
         curr_node = getTop(open_set); // get top object by f value
         curr_state = curr_node.state_p;
 
         if(curr_state->isFinal()){
+            std::cout<<x<<std::endl;
+            std::cout<<curr_node.g<<std::endl;
             return{};
         }
 
@@ -319,8 +323,14 @@ std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
             if (isExplored(adj_p, explored)) {
                 continue;
             }
-            // tu je zatial pouzita heuristika 0
-            Node adj_node = {adj_p, curr_node.g+1, curr_node.g + 1 + compute_heuristic(*adj_p, *heuristic_)};
+
+
+            // SWITCH BETWEEN THESE TWO
+            //double heuristic = compute_heuristic(*adj_p, *heuristic_);
+            double heuristic = 0;
+            
+            
+            Node adj_node = {adj_p, curr_node.g+1, curr_node.g + 1 + heuristic};// + compute_heuristic(*adj_p, *heuristic_)};
             
             // if this adjacent state is already in OPEN set then we might replace it if this one is better
             if(isOpen(adj_p, open_set)) {
