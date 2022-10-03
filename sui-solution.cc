@@ -99,8 +99,12 @@ std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState& init_stat
     return {};
 }
 
+
+
 using SearchAction_p = std::shared_ptr<const SearchAction>;
 using SearchState_p = std::shared_ptr<const SearchState>;
+
+namespace dfs {
 
 inline bool isExplored(SearchState_p state, std::set<SearchState_p> discovered) {
     return std::find_if(discovered.begin(), discovered.end(),
@@ -138,11 +142,13 @@ size_t max_states_count(size_t mem_limit) {
     return num_states * 0.8;
 }
 
+}
+
 std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state) {
     if (init_state.isFinal()) {
         return {};
     }
-    auto num_elems = max_states_count(mem_limit_);
+    auto num_elems = dfs::max_states_count(mem_limit_);
     // stack of pairs (ss, depth)
     std::stack<std::pair<SearchState_p, int>> stack;
     stack.push({{std::make_shared<const SearchState>(init_state)}, 0});
@@ -174,11 +180,12 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state)
                 path.push_back(*(prev.first));
             }
             std::reverse(path.begin(), path.end());
+            std::cout<<"FINISH "<<curr_p->nbExpanded()<<" | "<<num_elems<<std::endl;
             return path;
         }
 
         // set current state as already explored
-        setExplored(curr_p, explored);
+        dfs::setExplored(curr_p, explored);
 
         // push adjacent states to stack
         for (auto action : curr_p->actions()) {
@@ -189,7 +196,7 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state)
 
             // if state has been already explored, dont push him to stack
             // comparison by GameState, not by identity
-            if (isExplored(adj_p, explored)) {
+            if (dfs::isExplored(adj_p, explored)) {
                 continue;
             }
             history.insert({adj_p, {action_p, curr_p}});
@@ -204,6 +211,7 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state)
         if (x > num_elems)
             break;
     }
+    std::cout<<"FAIL "<<curr_p->nbExpanded()<<" | "<<num_elems<<std::endl;
     return {};
 }
 
