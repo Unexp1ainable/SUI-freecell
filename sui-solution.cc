@@ -252,38 +252,11 @@ typedef struct Node {
 } Node;
 
 
-Node popTop(std::vector<Node>& open_set) {
-    SearchState_p curr_state, min_state;
-    auto min_it = open_set.begin();
-    Node node_min = *min_it;
-    Node curr_node;
-    for (auto it = open_set.begin(); it != open_set.end(); it++) {
-        curr_node = *it;
-        if (curr_node.f < node_min.f) {
-            min_state = curr_state;
-            min_it = it;
-            node_min = *it;
-        }
-    }
-    open_set.erase(min_it);
-    return node_min;
-}
-
-
-
-struct NodeComparatorLess {
-    bool operator()(const Node& lhs,
-                    const Node& rhs) const
-    {
-        return *(lhs.state_p) <*(lhs.state_p);
-    }
-};
-
 struct NodeComparatorGreater {
     bool operator()(const Node& lhs,
                     const Node& rhs) const
     {
-        return   (lhs.f) < (lhs.f);
+        return   (rhs.f) < (lhs.f);
     }
 };
 
@@ -297,7 +270,7 @@ std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
     std::priority_queue<Node, std::vector<Node>, NodeComparatorGreater> open_set;
     open_set.push({std::make_shared<const SearchState>(init_state), nullptr, nullptr, 0., 0.});
 
-    std::set<SearchState_p, NodeComparatorLess> explored;
+    //std::set<SearchState_p, NodeComparatorLess> explored;
     std::set<SearchState> exp;
     std::map<SearchState_p, std::pair<SearchAction_p, SearchState_p>> history;
     
@@ -310,17 +283,7 @@ std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
         open_set.pop();
         curr_state = curr_node.state_p;
         // if state already explored then we dont process it
-        if(curr_state->isFinal()) {
-            std::cout<<"FINAL"<<std::endl;
-            std::vector<SearchAction> path;
-            for (int i = 0; i < curr_node.g; i++) {
-                auto prev = history.at(curr_state);
-                curr_state = prev.second;
-                path.push_back(*(prev.first));
-            }
-            std::reverse(path.begin(), path.end());
-            return path;
-        }
+        
 
         if(!exp.insert(*curr_state).second){
             continue;
@@ -331,9 +294,22 @@ std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
             const SearchState adj_state = action.execute(*curr_state);
             adj_p = std::make_shared<const SearchState>(adj_state);
             
+
+            if(adj_state.isFinal()) {
+                std::cout<<"FINAL"<<std::endl;
+                std::vector<SearchAction> path{action};
+                for (int i = 0; i < curr_node.g; i++) {
+                    auto prev = history.at(curr_state);
+                    curr_state = prev.second;
+                    path.push_back(*(prev.first));
+                }
+                std::reverse(path.begin(), path.end());
+                return path;
+            }
+
             // SWITCH BETWEEN THESE TWO
-            //double heuristic = compute_heuristic(*adj_p, *heuristic_);
-            double heuristic = 0;
+            double heuristic = compute_heuristic(*adj_p, *heuristic_);
+            //double heuristic = 0;
             
 
             Node adj_node = {adj_p, curr_state, std::make_shared<SearchAction>(action),curr_node.g+1, curr_node.g + 1 + heuristic};
