@@ -128,7 +128,7 @@ inline bool isExplored(SearchState_p state, std::set<SearchState_p> discovered) 
 
 inline void setExplored(SearchState_p state, std::set<SearchState_p>& discovered) {
     if (!discovered.insert(state).second) {
-        std::cout << "ALREDY THERE" << std::endl;
+        // std::cout << "ALREDY THERE" << std::endl;
     }
 }
 
@@ -202,7 +202,6 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state)
                 path.push_back(*(prev.first));
             }
             std::reverse(path.begin(), path.end());
-            std::cout << "FINISH " << curr_p->nbExpanded() << " | " << num_elems << std::endl;
             return path;
         }
 
@@ -233,18 +232,11 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state)
         if (x > num_elems)
             break;
     }
-    std::cout << "FAIL " << curr_p->nbExpanded() << " | " << num_elems << std::endl;
     return {};
 }
 
 double StudentHeuristic::distanceLowerBound(const GameState& state) const {
-    // int cards_out_of_home = king_value * colors_list.size();
-    // for (const auto& home : state.homes) {
-    //     auto opt_top = home.topCard();
-    //     if (opt_top.has_value())
-    //         cards_out_of_home -= opt_top->value;
-    // }
-
+    // determine cards to be put home
     std::optional<Card> cCard{Card(Color::Club, 1)};  // Tesco
     std::optional<Card> dCard{Card(Color::Diamond, 1)};
     std::optional<Card> hCard{Card(Color::Heart, 1)};
@@ -279,11 +271,10 @@ double StudentHeuristic::distanceLowerBound(const GameState& state) const {
         }
     }
 
+    // count cards before the required cards
     int turns = 0;
     bool count = false;
 
-    // std::cout << state;
-    // how many cards till we get to the next card to go home
     for (const auto& stack : state.stacks) {
         count = false;
 
@@ -299,15 +290,6 @@ double StudentHeuristic::distanceLowerBound(const GameState& state) const {
             }
         }
     }
-
-    // for (const auto& cell : state.free_cells) {
-    //     if (cell.topCard().has_value()) {
-    //         turns += 2;
-    //     }
-    // }
-    // // std::cout << turns << std::endl;
-    // // exit(0);
-    // return turns + cards_out_of_home / 2;
 
     // cards not in order weighted by measure of unorderness
     for (const auto& stack : state.stacks) {
@@ -338,13 +320,13 @@ double StudentHeuristic::distanceLowerBound(const GameState& state) const {
 
 namespace a_star {
 
-typedef struct Node {
+struct Node {
     SearchState_p state_p;
     SearchState_p prev_p;
     SearchAction_p action;
     double g;
     double f;
-} Node;
+};
 
 struct NodeComparator {
     bool operator()(const Node& lhs,
@@ -427,7 +409,6 @@ std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
             x++;
 
             if (adj_state_p->isFinal()) {
-                std::cout << "FINAL " << curr_state_p->nbExpanded() << " | " << num_elems << std::endl;
                 std::vector<SearchAction> path{action};
                 for (int i = 0; i < curr_node.g; i++) {
                     auto prev = history.at(curr_state_p);
@@ -446,7 +427,6 @@ std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
             break;
         }
     }
-    std::cout << "FAIL " << curr_state_p->nbExpanded() << " | " << num_elems << std::endl;
     return {};
 }
 
