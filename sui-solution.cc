@@ -8,6 +8,7 @@
 #include "memusage.h"
 #include "search-strategies.h"
 #include <sstream>
+#include <list>
 
 constexpr int CARD_COUNT = 52;
 // constexpr int TOTAL_CARD_PTRS = (nb_stacks + nb_freecells + nb_homes + nb_stacks + nb_freecells);
@@ -43,6 +44,8 @@ std::vector<SearchAction> finalize(
     return result;
 }
 
+
+
 std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState& init_state) {
     if (init_state.isFinal()) {
         return {};
@@ -73,12 +76,11 @@ std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState& init_stat
     // begin bfs
     for (size_t i = 0; i < toBeSearched.size(); i++) {
         auto currState = *toBeSearched[i];
-
         for (const auto& action : currState.actions()) {
             if (total == size - 1) {
                 return {};
             }
-
+                        
             auto next = expanded.emplace(action.execute(currState));
             if (next.second) {  // if element was not in the expanded set
                 actions.emplace_back(action);
@@ -110,22 +112,11 @@ inline bool isExplored(SearchState_p state, std::set<SearchState_p> discovered) 
 }
 
 inline void setExplored(SearchState_p state, std::set<SearchState_p>& discovered) {
-    discovered.insert(state);
+    if(!discovered.insert(state).second) {
+        std::cout<<"ALREDY THERE"<<std::endl;
+    }
 }
 
-std::string hash(SearchState state) {
-    std::ostringstream ss;
-    ss << state;
-    /*for(auto a : state.actions()){
-        ss<<a;
-    }*/
-    std::hash<std::string> hash;
-    std::string h = ss.str();
-    ss.str("");
-    std::ostringstream ss2;
-    ss2<<hash(h);
-    return ss2.str();
-}
 
 
 
@@ -156,7 +147,6 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state)
     if (init_state.isFinal()) {
         return {};
     }
-
     auto num_elems = max_states_count(mem_limit_);
     // stack of pairs (ss, depth)
     std::stack<std::pair<SearchState_p, int>> stack;
@@ -250,27 +240,18 @@ double StudentHeuristic::distanceLowerBound(const GameState& state) const {
     return turns;
 }
 
+
+
+
 typedef struct Node {
     SearchState_p state_p;
+
     double g;
     double f;
 } Node;
 
-inline bool isOpen(SearchState_p state, std::vector<Node> open_set) {
-    return std::find_if(open_set.begin(), open_set.end(),
-                        [&](Node n) {
-                            return *(n.state_p) == *state;
-                        }) != open_set.end();
-}
 
-inline std::vector<Node>::iterator getThis(SearchState_p state, std::vector<Node> open_set) {
-    return std::find_if(open_set.begin(), open_set.end(),
-                        [&](Node n) {
-                            return *(n.state_p) == *state;
-                        });
-}
-
-Node getTop(std::vector<Node>& open_set) {
+Node popTop(std::vector<Node>& open_set) {
     SearchState_p curr_state, min_state;
     auto min_it = open_set.begin();
     Node node_min = *min_it;
@@ -280,6 +261,7 @@ Node getTop(std::vector<Node>& open_set) {
         if (curr_node.f < node_min.f) {
             min_state = curr_state;
             min_it = it;
+            node_min = *it;
         }
     }
     open_set.erase(min_it);
@@ -288,65 +270,66 @@ Node getTop(std::vector<Node>& open_set) {
 
 
 
+struct NodeComparatorLess {
+    bool operator()(const Node& lhs,
+                    const Node& rhs) const
+    {
+        return *(lhs.state_p) <*(lhs.state_p);
+    }
+};
+
+struct NodeComparatorGreater {
+    bool operator()(const Node& lhs,
+                    const Node& rhs) const
+    {
+        return   (lhs.f) < (lhs.f);
+    }
+};
+
+
+
 std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
     if (init_state.isFinal()) {
         return {};
     }
     // priority queue sorted by f
-    std::vector<Node> open_set{
-        {std::make_shared<const SearchState>(init_state), 0., 0.}
-    };
-    std::set<SearchState_p> explored;
+    std::priority_queue<Node, std::vector<Node>, NodeComparatorGreater> open_set;
+    open_set.push({std::make_shared<const SearchState>(init_state), 0., 0.});
 
+    std::set<SearchState_p, NodeComparatorLess> explored;
+    std::set<SearchState> exp;
+    
     SearchState_p curr_state, adj_p, prev_p;
     SearchAction_p action_p;
 
     Node curr_node;
-    int x = 0;
     while(!open_set.empty()) {
-        x++;
-        curr_node = getTop(open_set); // get top object by f value
+        curr_node = open_set.top(); // get top object by f value
+        open_set.pop();
         curr_state = curr_node.state_p;
-
-        if(curr_state->isFinal()){
-            std::cout<<x<<std::endl;
-            std::cout<<curr_node.g<<std::endl;
-            return{};
+        // if state already explored then we dont process it
+        if(!exp.insert(*curr_state).second){
+            continue;
         }
 
-        setExplored(curr_state, explored);
-
         for (auto action : curr_state->actions()) {
+            // adjacent state
             const SearchState adj_state = action.execute(*curr_state);
-            
             adj_p = std::make_shared<const SearchState>(adj_state);
-            if (isExplored(adj_p, explored)) {
-                continue;
-            }
-
 
             // SWITCH BETWEEN THESE TWO
             //double heuristic = compute_heuristic(*adj_p, *heuristic_);
             double heuristic = 0;
             
             
-            Node adj_node = {adj_p, curr_node.g+1, curr_node.g + 1 + heuristic};// + compute_heuristic(*adj_p, *heuristic_)};
-            
-            // if this adjacent state is already in OPEN set then we might replace it if this one is better
-            if(isOpen(adj_p, open_set)) {
-                auto found_node_it = getThis(adj_p, open_set);
-                // if this state is better than replace it
-                if(adj_node.g < found_node_it->g) {
-                    open_set.erase(found_node_it);
-                    open_set.push_back(adj_node);
-                }else{
-                    continue;
-                }
-            }else{
-                open_set.push_back(adj_node);
+            Node adj_node = {adj_p, curr_node.g+1, curr_node.g + 1 + heuristic};
+            if(adj_p->isFinal()) {
+                std::cout<<"FINAL"<<std::endl;
+                return {};
             }
+            open_set.push(adj_node);
         }
     }
+    std::cout<<"FAIL"<<std::endl;
     return {};
 }
-
