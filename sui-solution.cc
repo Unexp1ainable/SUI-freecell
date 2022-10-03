@@ -10,10 +10,16 @@
 #include "memusage.h"
 #include "search-strategies.h"
 
+#include <chrono>
+#include <thread>
+
 constexpr int CARD_COUNT = 52;
 // constexpr int TOTAL_CARD_PTRS = (nb_stacks + nb_freecells + nb_homes + nb_stacks + nb_freecells);
 constexpr int TOTAL_CARD_PTRS = 0;
 constexpr int MEMORY_RESERVE = 100;
+
+// because RSS is not updating, after one solve try fails, the memory is shown as not free. Here will be the first number of nodes stored and reused in subsequent tries
+size_t iters = 0;
 
 bool operator==(const SearchState& a, const SearchState& b) {
     return a.state_ == b.state_;
@@ -40,7 +46,6 @@ std::vector<SearchAction> finalize(
     }
 
     std::reverse(result.begin(), result.end());
-
     return result;
 }
 
@@ -50,13 +55,19 @@ std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState& init_stat
     }
 
     // pre-calculate maximum size of the containers
-    size_t size = (mem_limit_ - getCurrentRSS()) /
-                      (sizeof(SearchState) +
-                       sizeof(int) +
-                       sizeof(SearchAction) +
-                       sizeof(std::set<SearchState>::iterator) +
-                       CARD_COUNT * sizeof(Card)) -
-                  MEMORY_RESERVE;
+    size_t size;
+    if (iters == 0) {
+        size = (mem_limit_ - getCurrentRSS()) /
+                   (sizeof(SearchState) +
+                    sizeof(int) +
+                    sizeof(SearchAction) +
+                    sizeof(std::set<SearchState>::iterator) +
+                    CARD_COUNT * sizeof(Card)) -
+               MEMORY_RESERVE;
+        iters = size;
+    } else {
+        size = iters;
+    }
 
     // pre-allocate space
     std::set<SearchState> expanded{init_state};
@@ -99,8 +110,6 @@ std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState& init_stat
     return {};
 }
 
-
-
 using SearchAction_p = std::shared_ptr<const SearchAction>;
 using SearchState_p = std::shared_ptr<const SearchState>;
 
@@ -142,13 +151,21 @@ size_t max_states_count(size_t mem_limit) {
     return num_states * 0.8;
 }
 
-}
+}  // namespace dfs
 
 std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state) {
     if (init_state.isFinal()) {
         return {};
     }
-    auto num_elems = dfs::max_states_count(mem_limit_);
+
+    size_t num_elems;
+    if (iters == 0) {
+        num_elems = dfs::max_states_count(mem_limit_);
+        iters = num_elems;
+    } else {
+        num_elems = iters;
+    }
+
     // stack of pairs (ss, depth)
     std::stack<std::pair<SearchState_p, int>> stack;
     stack.push({{std::make_shared<const SearchState>(init_state)}, 0});
@@ -160,6 +177,7 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state)
     int curr_depth;
     SearchState_p curr_p, adj_p;
     SearchAction_p action_p;
+    size_t x = 1;
     while (!stack.empty()) {
         // pop top state from stack
         curr_p = stack.top().first;
@@ -180,7 +198,7 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state)
                 path.push_back(*(prev.first));
             }
             std::reverse(path.begin(), path.end());
-            std::cout<<"FINISH "<<curr_p->nbExpanded()<<" | "<<num_elems<<std::endl;
+            std::cout << "FINISH " << curr_p->nbExpanded() << " | " << num_elems << std::endl;
             return path;
         }
 
@@ -199,6 +217,7 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state)
             if (dfs::isExplored(adj_p, explored)) {
                 continue;
             }
+            x++;
             history.insert({adj_p, {action_p, curr_p}});
             stack.push({adj_p, curr_depth + 1});
         }
@@ -207,15 +226,21 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state)
             break;
         }
         // check whether we surpassed predicted limit of expanded states
-        size_t x = curr_p->nbExpanded();
         if (x > num_elems)
             break;
     }
-    std::cout<<"FAIL "<<curr_p->nbExpanded()<<" | "<<num_elems<<std::endl;
+    std::cout << "FAIL " << curr_p->nbExpanded() << " | " << num_elems << std::endl;
     return {};
 }
 
 double StudentHeuristic::distanceLowerBound(const GameState& state) const {
+    // int cards_out_of_home = king_value * colors_list.size();
+    // for (const auto& home : state.homes) {
+    //     auto opt_top = home.topCard();
+    //     if (opt_top.has_value())
+    //         cards_out_of_home -= opt_top->value;
+    // }
+
     std::optional<Card> cCard{Card(Color::Club, 1)};  // Tesco
     std::optional<Card> dCard{Card(Color::Diamond, 1)};
     std::optional<Card> hCard{Card(Color::Heart, 1)};
@@ -260,7 +285,7 @@ double StudentHeuristic::distanceLowerBound(const GameState& state) const {
 
         for (const auto& card : stack.storage()) {
             if (count) {
-                turns += 7;
+                turns += 2;
                 continue;
             }
 
@@ -273,11 +298,37 @@ double StudentHeuristic::distanceLowerBound(const GameState& state) const {
 
     // for (const auto& cell : state.free_cells) {
     //     if (cell.topCard().has_value()) {
-    //         turns++;
+    //         turns += 2;
     //     }
     // }
-    // std::cout << turns << std::endl;
-    // exit(0);
+    // // std::cout << turns << std::endl;
+    // // exit(0);
+    // return turns + cards_out_of_home / 2;
+
+    // cards not in order weighted by measure of unorderness
+    for (const auto& stack : state.stacks) {
+        const auto& storage = stack.storage();
+        if (storage.empty()) {
+            continue;
+        }
+
+        const Card& last = *stack.storage().begin();
+        auto end = storage.end();
+        for (auto it = storage.begin() + 1; it != end; it++) {
+            auto diff = abs(last.value - 1 - it->value);
+            if (diff != 0) {
+                turns += diff;
+            }
+        }
+    }
+
+    // + cards in freecells
+    for (const auto& freecell : state.free_cells) {
+        if (freecell.topCard().has_value()) {
+            turns += 2;
+        }
+    }
+
     return turns;
 }
 
@@ -305,16 +356,15 @@ struct SearchStatePointerComparator {
     }
 };
 
-
 size_t max_states_count(size_t mem_limit) {
     size_t search_state_s = sizeof(const SearchState) + CARD_COUNT * (sizeof(Card));
-    size_t node_s = sizeof(Node);                                    
-    size_t open_set_s = sizeof(std::priority_queue<a_star::Node>);  
-    size_t open_set_elem_s = node_s + search_state_s;      
+    size_t node_s = sizeof(Node);
+    size_t open_set_s = sizeof(std::priority_queue<a_star::Node>);
+    size_t open_set_elem_s = node_s + search_state_s;
 
-    size_t search_state_ptr_s = sizeof(SearchState_p);                   
-    size_t set_elem_s = search_state_ptr_s;          
-    size_t set_s = sizeof(std::set<SearchState_p>);  
+    size_t search_state_ptr_s = sizeof(SearchState_p);
+    size_t set_elem_s = search_state_ptr_s;
+    size_t set_s = sizeof(std::set<SearchState_p>);
 
     size_t pair_s_as = sizeof(std::pair<SearchState_p, std::pair<SearchAction_p, SearchState_p>>);
     size_t search_action_s = sizeof(const SearchAction);
@@ -323,13 +373,12 @@ size_t max_states_count(size_t mem_limit) {
     size_t map_elem_s = pair_s_as + 2 * search_state_ptr_s + pair_as + search_action_ptr_s + search_action_s;
     size_t map_s = sizeof(std::map<SearchState_p, std::pair<SearchAction_p, SearchState_p>>);
 
-    size_t num_states = (mem_limit - getCurrentRSS() - open_set_s - set_s - map_s) / 
-                (set_elem_s + open_set_elem_s + map_elem_s);
-    return num_states*0.8;  
+    size_t num_states = (mem_limit - getCurrentRSS() - open_set_s - set_s - map_s) /
+                        (set_elem_s + open_set_elem_s + map_elem_s);
+    return num_states * 0.8;
 }
 
-
-}
+}  // namespace a_star
 
 std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
     if (init_state.isFinal()) {
@@ -338,7 +387,13 @@ std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
     // priority queue sorted by f
     // initialized with init_state
     std::priority_queue<a_star::Node, std::vector<a_star::Node>, a_star::NodeComparator> open_set;
-    auto num_elems = a_star::max_states_count(mem_limit_);
+    size_t num_elems;
+    if (iters == 0) {
+        num_elems = a_star::max_states_count(mem_limit_);
+        iters = num_elems;
+    } else {
+        num_elems = iters;
+    }
     open_set.push({std::make_shared<const SearchState>(init_state), nullptr, nullptr, 0., 0.});
 
     // set of already explored states
@@ -351,7 +406,7 @@ std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
 
     a_star::Node curr_node;
     double heuristic;
-
+    size_t x = 1;
     while (!open_set.empty()) {
         curr_node = open_set.top();  // get top object by f value
         open_set.pop();
@@ -365,9 +420,10 @@ std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
         for (auto action : curr_state_p->actions()) {
             // adjacent state
             adj_state_p = std::make_shared<const SearchState>(action.execute(*curr_state_p));
-            
-            if(adj_state_p->isFinal()) {
-                std::cout<<"FINAL "<<curr_state_p->nbExpanded()<<" | "<<num_elems<<std::endl;
+            x++;
+
+            if (adj_state_p->isFinal()) {
+                std::cout << "FINAL " << curr_state_p->nbExpanded() << " | " << num_elems << std::endl;
                 std::vector<SearchAction> path{action};
                 for (int i = 0; i < curr_node.g; i++) {
                     auto prev = history.at(curr_state_p);
@@ -379,15 +435,15 @@ std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
             }
             heuristic = compute_heuristic(*adj_state_p, *heuristic_);
             open_set.emplace(
-                a_star::Node{adj_state_p, curr_state_p, std::make_shared<SearchAction>(action),curr_node.g+1, curr_node.g + 1 + heuristic}
-                );
+                a_star::Node{adj_state_p, curr_state_p, std::make_shared<SearchAction>(action), curr_node.g + 1, curr_node.g + 1 + heuristic});
             history.insert({adj_state_p, {std::make_shared<SearchAction>(action), curr_state_p}});
         }
-        size_t x = curr_state_p->nbExpanded();
-        if(x > num_elems) {
+        if (x > num_elems) {
             break;
         }
     }
-    std::cout<<"FAIL "<<curr_state_p->nbExpanded()<<" | "<<num_elems<<std::endl;
+    std::cout << "FAIL " << curr_state_p->nbExpanded() << " | " << num_elems << std::endl;
     return {};
 }
+
+std::vector<SearchAction> solve(const SearchState& init_state);
