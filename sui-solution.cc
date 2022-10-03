@@ -245,7 +245,8 @@ double StudentHeuristic::distanceLowerBound(const GameState& state) const {
 
 typedef struct Node {
     SearchState_p state_p;
-
+    SearchState_p prev_p;
+    SearchAction_p action;
     double g;
     double f;
 } Node;
@@ -294,10 +295,11 @@ std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
     }
     // priority queue sorted by f
     std::priority_queue<Node, std::vector<Node>, NodeComparatorGreater> open_set;
-    open_set.push({std::make_shared<const SearchState>(init_state), 0., 0.});
+    open_set.push({std::make_shared<const SearchState>(init_state), nullptr, nullptr, 0., 0.});
 
     std::set<SearchState_p, NodeComparatorLess> explored;
     std::set<SearchState> exp;
+    std::map<SearchState_p, std::pair<SearchAction_p, SearchState_p>> history;
     
     SearchState_p curr_state, adj_p, prev_p;
     SearchAction_p action_p;
@@ -308,6 +310,18 @@ std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
         open_set.pop();
         curr_state = curr_node.state_p;
         // if state already explored then we dont process it
+        if(curr_state->isFinal()) {
+            std::cout<<"FINAL"<<std::endl;
+            std::vector<SearchAction> path;
+            for (int i = 0; i < curr_node.g; i++) {
+                auto prev = history.at(curr_state);
+                curr_state = prev.second;
+                path.push_back(*(prev.first));
+            }
+            std::reverse(path.begin(), path.end());
+            return path;
+        }
+
         if(!exp.insert(*curr_state).second){
             continue;
         }
@@ -316,18 +330,16 @@ std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
             // adjacent state
             const SearchState adj_state = action.execute(*curr_state);
             adj_p = std::make_shared<const SearchState>(adj_state);
-
+            
             // SWITCH BETWEEN THESE TWO
             //double heuristic = compute_heuristic(*adj_p, *heuristic_);
             double heuristic = 0;
             
+
+            Node adj_node = {adj_p, curr_state, std::make_shared<SearchAction>(action),curr_node.g+1, curr_node.g + 1 + heuristic};
             
-            Node adj_node = {adj_p, curr_node.g+1, curr_node.g + 1 + heuristic};
-            if(adj_p->isFinal()) {
-                std::cout<<"FINAL"<<std::endl;
-                return {};
-            }
             open_set.push(adj_node);
+            history.insert({adj_p, {std::make_shared<SearchAction>(action), curr_state}});
         }
     }
     std::cout<<"FAIL"<<std::endl;
