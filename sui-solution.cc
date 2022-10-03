@@ -1,14 +1,14 @@
 #include <algorithm>
 #include <functional>
 #include <iostream>
+#include <list>
 #include <optional>
-#include <set>
 #include <queue>
+#include <set>
+#include <sstream>
 #include <stack>
 #include "memusage.h"
 #include "search-strategies.h"
-#include <sstream>
-#include <list>
 
 constexpr int CARD_COUNT = 52;
 // constexpr int TOTAL_CARD_PTRS = (nb_stacks + nb_freecells + nb_homes + nb_stacks + nb_freecells);
@@ -44,8 +44,6 @@ std::vector<SearchAction> finalize(
     return result;
 }
 
-
-
 std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState& init_state) {
     if (init_state.isFinal()) {
         return {};
@@ -80,7 +78,7 @@ std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState& init_stat
             if (total == size - 1) {
                 return {};
             }
-                        
+
             auto next = expanded.emplace(action.execute(currState));
             if (next.second) {  // if element was not in the expanded set
                 actions.emplace_back(action);
@@ -112,21 +110,21 @@ inline bool isExplored(SearchState_p state, std::set<SearchState_p> discovered) 
 }
 
 inline void setExplored(SearchState_p state, std::set<SearchState_p>& discovered) {
-    if(!discovered.insert(state).second) {
-        std::cout<<"ALREDY THERE"<<std::endl;
+    if (!discovered.insert(state).second) {
+        std::cout << "ALREDY THERE" << std::endl;
     }
 }
 
 size_t max_states_count(size_t mem_limit) {
     size_t search_state_s = sizeof(const SearchState) + CARD_COUNT * (sizeof(Card));
-    size_t search_state_ptr_s = sizeof(SearchState_p);                   
-    size_t depth_s = sizeof(int);                                        
-    size_t pair_s_d = sizeof(std::pair<SearchState_p, int>);             
-    size_t stack_s = sizeof(std::stack<std::pair<SearchState_p, int>>);  
-    size_t stack_elem_s = depth_s + search_state_ptr_s + pair_s_d;      
+    size_t search_state_ptr_s = sizeof(SearchState_p);
+    size_t depth_s = sizeof(int);
+    size_t pair_s_d = sizeof(std::pair<SearchState_p, int>);
+    size_t stack_s = sizeof(std::stack<std::pair<SearchState_p, int>>);
+    size_t stack_elem_s = depth_s + search_state_ptr_s + pair_s_d;
 
-    size_t set_elem_s = search_state_ptr_s;          
-    size_t set_s = sizeof(std::set<SearchState_p>);  
+    size_t set_elem_s = search_state_ptr_s;
+    size_t set_s = sizeof(std::set<SearchState_p>);
 
     size_t pair_s_as = sizeof(std::pair<SearchState_p, std::pair<SearchAction_p, SearchState_p>>);
     size_t search_action_s = sizeof(const SearchAction);
@@ -135,9 +133,9 @@ size_t max_states_count(size_t mem_limit) {
     size_t map_elem_s = pair_s_as + 2 * search_state_ptr_s + pair_as + search_action_ptr_s + search_action_s;
     size_t map_s = sizeof(std::map<SearchState_p, std::pair<SearchAction_p, SearchState_p>>);
 
-    size_t num_states = (mem_limit - getCurrentRSS() - stack_s - set_s - map_s) / 
-                (set_elem_s +stack_elem_s  + map_elem_s+ search_state_s);
-    return num_states*0.8;  
+    size_t num_states = (mem_limit - getCurrentRSS() - stack_s - set_s - map_s) /
+                        (set_elem_s + stack_elem_s + map_elem_s + search_state_s);
+    return num_states * 0.8;
 }
 
 std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state) {
@@ -181,11 +179,10 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state)
 
         // set current state as already explored
         setExplored(curr_p, explored);
-        
+
         // push adjacent states to stack
         for (auto action : curr_p->actions()) {
             const SearchState adj_state = action.execute(*curr_p);
-            
 
             adj_p = std::make_shared<const SearchState>(adj_state);
             action_p = std::make_shared<const SearchAction>(action);
@@ -198,42 +195,81 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state)
             history.insert({adj_p, {action_p, curr_p}});
             stack.push({adj_p, curr_depth + 1});
         }
-        if(getCurrentRSS() > mem_limit_) {
+        if (getCurrentRSS() > mem_limit_) {
             // this should never be reached, but just to be sure...
             break;
         }
         // check whether we surpassed predicted limit of expanded states
         size_t x = curr_p->nbExpanded();
-        if(x > num_elems) break;
+        if (x > num_elems)
+            break;
     }
     return {};
 }
 
 double StudentHeuristic::distanceLowerBound(const GameState& state) const {
-    // cards not in order
-    int turns = 0;
-    for (const auto& stack : state.stacks) {
-        const auto& storage = stack.storage();
-        if (storage.empty()) {
-            continue;
-        }
+    std::optional<Card> cCard{Card(Color::Club, 1)};  // Tesco
+    std::optional<Card> dCard{Card(Color::Diamond, 1)};
+    std::optional<Card> hCard{Card(Color::Heart, 1)};
+    std::optional<Card> sCard{Card(Color::Spade, 1)};
+    for (const auto& home : state.homes) {
+        if (home.topCard().has_value()) {
+            auto card = *home.topCard();
+            switch (card.color) {
+                case Color::Club:
+                    if (card.value != king_value)
+                        cCard.emplace(Card(card.color, card.value + 1));
+                    break;
 
-        const Card& last = *stack.storage().begin();
-        auto end = storage.end();
-        for (auto it = storage.begin() + 1; it != end; it++) {
-            if (last.value - 1 != it->value) {
+                case Color::Diamond:
+                    if (card.value != king_value)
+                        dCard.emplace(Card(card.color, card.value + 1));
+                    break;
+
+                case Color::Heart:
+                    if (card.value != king_value)
+                        hCard.emplace(Card(card.color, card.value + 1));
+                    break;
+
+                case Color::Spade:
+                    if (card.value != king_value)
+                        sCard.emplace(Card(card.color, card.value + 1));
+                    break;
+
+                default:
+                    break;
+            }
+        }
+    }
+
+    int turns = 0;
+    bool count = false;
+
+    // std::cout << state;
+    // how many cards till we get to the next card to go home
+    for (const auto& stack : state.stacks) {
+        count = false;
+
+        for (const auto& card : stack.storage()) {
+            if (count) {
+                turns += 7;
+                continue;
+            }
+
+            if (card == cCard || card == sCard || card == dCard || card == hCard) {
+                count = true;
                 turns++;
             }
         }
     }
 
-    // + cards in freecells
-    for (const auto& freecell : state.free_cells) {
-        if (freecell.topCard().has_value()) {
-            turns++;
-        }
-    }
-
+    // for (const auto& cell : state.free_cells) {
+    //     if (cell.topCard().has_value()) {
+    //         turns++;
+    //     }
+    // }
+    // std::cout << turns << std::endl;
+    // exit(0);
     return turns;
 }
 
@@ -249,17 +285,15 @@ typedef struct Node {
 
 struct NodeComparator {
     bool operator()(const Node& lhs,
-                    const Node& rhs) const
-    {
-        return   (rhs.f) < (lhs.f);
+                    const Node& rhs) const {
+        return (rhs.f) < (lhs.f);
     }
 };
 
 struct SearchStatePointerComparator {
     bool operator()(const SearchState_p& lhs,
-                    const SearchState_p& rhs) const
-    {
-        return   (*lhs) < (*rhs);
+                    const SearchState_p& rhs) const {
+        return (*lhs) < (*rhs);
     }
 };
 
@@ -303,20 +337,20 @@ std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
     std::set<SearchState_p, a_star::SearchStatePointerComparator> exp;
     // history map, needed for path tracing
     std::map<SearchState_p, std::pair<SearchAction_p, SearchState_p>> history;
-    
+
     SearchState_p curr_state_p, adj_state_p;
     SearchAction_p action_p;
 
     a_star::Node curr_node;
     double heuristic;
 
-    while(!open_set.empty()) {
-        curr_node = open_set.top(); // get top object by f value
+    while (!open_set.empty()) {
+        curr_node = open_set.top();  // get top object by f value
         open_set.pop();
         curr_state_p = curr_node.state_p;
 
         // if state already explored then we dont process it
-        if(!exp.insert(curr_state_p).second){
+        if (!exp.insert(curr_state_p).second) {
             continue;
         }
 
