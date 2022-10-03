@@ -18,8 +18,9 @@ constexpr int CARD_COUNT = 52;
 constexpr int TOTAL_CARD_PTRS = 0;
 constexpr int MEMORY_RESERVE = 100;
 
-// because RSS is not updating, after one solve try fails, the memory is shown as not free. Here will be the first number of nodes stored and reused in subsequent tries
-size_t iters = 0;
+// because RSS is not updating, after one solve try fails, the memory is shown as not free.
+// Here will be the first number of items stored and reused in subsequent tries
+size_t safe_item_count_global = 0;
 
 bool operator==(const SearchState& a, const SearchState& b) {
     return a.state_ == b.state_;
@@ -30,7 +31,6 @@ bool operator==(const SearchState& a, const SearchState& b) {
  *
  * @param howDidWeGetHere Mapping of parent states
  * @param actions Action to state mapping (index of action corresponds to the index of the state)
- * @param total End of vectors, since the
  * @return std::vector<SearchAction>
  */
 std::vector<SearchAction> finalize(
@@ -40,6 +40,7 @@ std::vector<SearchAction> finalize(
     std::vector<SearchAction> result{actions.back()};
     auto actionN = howDidWeGetHere.back();
 
+    // backtrack
     while (actionN != 0) {
         result.emplace_back(actions[actionN - 1]);
         actionN = howDidWeGetHere[actionN - 1];
@@ -55,18 +56,19 @@ std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState& init_stat
     }
 
     // pre-calculate maximum size of the containers
-    size_t size;
-    if (iters == 0) {
-        size = (mem_limit_ - getCurrentRSS()) /
-                   (sizeof(SearchState) +
-                    sizeof(int) +
-                    sizeof(SearchAction) +
-                    sizeof(std::set<SearchState>::iterator) +
-                    CARD_COUNT * sizeof(Card)) -
-               MEMORY_RESERVE;
-        iters = size;
+    size_t item_count;
+    if (safe_item_count_global == 0) {
+        item_count = (mem_limit_ - getCurrentRSS()) /
+                         (sizeof(SearchState) +
+                          sizeof(int) +
+                          sizeof(SearchAction) +
+                          sizeof(std::set<SearchState>::iterator) +
+                          CARD_COUNT * sizeof(Card)) -
+                     MEMORY_RESERVE;
+
+        safe_item_count_global = item_count;
     } else {
-        size = iters;
+        item_count = safe_item_count_global;
     }
 
     // pre-allocate space
@@ -75,18 +77,19 @@ std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState& init_stat
     std::vector<int> howDidWeGetHere{};                           // holds index of the parent state
     std::vector<SearchAction> actions{};                          // holds all actions
 
-    toBeSearched.reserve(size);
-    howDidWeGetHere.reserve(size);
-    actions.reserve(size);
+    toBeSearched.reserve(item_count);
+    howDidWeGetHere.reserve(item_count);
+    actions.reserve(item_count);
     toBeSearched.emplace_back(expanded.begin());
 
-    size_t total = 0;
+    size_t curr_item_count = 0;
 
     // begin bfs
     for (size_t i = 0; i < toBeSearched.size(); i++) {
         auto currState = *toBeSearched[i];
         for (const auto& action : currState.actions()) {
-            if (total == size - 1) {
+            // number of items exceeded
+            if (curr_item_count == item_count - 1) {
                 return {};
             }
 
@@ -96,17 +99,18 @@ std::vector<SearchAction> BreadthFirstSearch::solve(const SearchState& init_stat
                 toBeSearched.emplace_back(next.first);
                 howDidWeGetHere.emplace_back(i);
                 if (toBeSearched.back()->isFinal()) {
+                    // free memory for backtracking (just to be sure)
                     toBeSearched.clear();
                     expanded.clear();
                     return finalize(howDidWeGetHere, actions);
                 }
             }
 
-            total++;
+            curr_item_count++;
         }
     }
 
-    // we should not ever reach this
+    // we should never reach this
     return {};
 }
 
@@ -159,11 +163,11 @@ std::vector<SearchAction> DepthFirstSearch::solve(const SearchState& init_state)
     }
 
     size_t num_elems;
-    if (iters == 0) {
+    if (safe_item_count_global == 0) {
         num_elems = dfs::max_states_count(mem_limit_);
-        iters = num_elems;
+        safe_item_count_global = num_elems;
     } else {
-        num_elems = iters;
+        num_elems = safe_item_count_global;
     }
 
     // stack of pairs (ss, depth)
@@ -388,11 +392,11 @@ std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
     // initialized with init_state
     std::priority_queue<a_star::Node, std::vector<a_star::Node>, a_star::NodeComparator> open_set;
     size_t num_elems;
-    if (iters == 0) {
+    if (safe_item_count_global == 0) {
         num_elems = a_star::max_states_count(mem_limit_);
-        iters = num_elems;
+        safe_item_count_global = num_elems;
     } else {
-        num_elems = iters;
+        num_elems = safe_item_count_global;
     }
     open_set.push({std::make_shared<const SearchState>(init_state), nullptr, nullptr, 0., 0.});
 
