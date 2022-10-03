@@ -237,6 +237,8 @@ double StudentHeuristic::distanceLowerBound(const GameState& state) const {
     return turns;
 }
 
+namespace a_star {
+
 typedef struct Node {
     SearchState_p state_p;
     SearchState_p prev_p;
@@ -261,24 +263,51 @@ struct SearchStatePointerComparator {
     }
 };
 
+
+size_t max_states_count(size_t mem_limit) {
+    size_t search_state_s = sizeof(const SearchState) + CARD_COUNT * (sizeof(Card));
+    size_t node_s = sizeof(Node);                                    
+    size_t open_set_s = sizeof(std::priority_queue<a_star::Node>);  
+    size_t open_set_elem_s = node_s + search_state_s;      
+
+    size_t search_state_ptr_s = sizeof(SearchState_p);                   
+    size_t set_elem_s = search_state_ptr_s;          
+    size_t set_s = sizeof(std::set<SearchState_p>);  
+
+    size_t pair_s_as = sizeof(std::pair<SearchState_p, std::pair<SearchAction_p, SearchState_p>>);
+    size_t search_action_s = sizeof(const SearchAction);
+    size_t pair_as = sizeof(std::pair<SearchAction_p, SearchState_p>);
+    size_t search_action_ptr_s = sizeof(SearchAction_p);
+    size_t map_elem_s = pair_s_as + 2 * search_state_ptr_s + pair_as + search_action_ptr_s + search_action_s;
+    size_t map_s = sizeof(std::map<SearchState_p, std::pair<SearchAction_p, SearchState_p>>);
+
+    size_t num_states = (mem_limit - getCurrentRSS() - open_set_s - set_s - map_s) / 
+                (set_elem_s + open_set_elem_s + map_elem_s);
+    return num_states*0.8;  
+}
+
+
+}
+
 std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
     if (init_state.isFinal()) {
         return {};
     }
     // priority queue sorted by f
     // initialized with init_state
-    std::priority_queue<Node, std::vector<Node>, NodeComparator> open_set;
+    std::priority_queue<a_star::Node, std::vector<a_star::Node>, a_star::NodeComparator> open_set;
+    auto num_elems = a_star::max_states_count(mem_limit_);
     open_set.push({std::make_shared<const SearchState>(init_state), nullptr, nullptr, 0., 0.});
 
     // set of already explored states
-    std::set<SearchState_p, SearchStatePointerComparator> exp;
+    std::set<SearchState_p, a_star::SearchStatePointerComparator> exp;
     // history map, needed for path tracing
     std::map<SearchState_p, std::pair<SearchAction_p, SearchState_p>> history;
     
     SearchState_p curr_state_p, adj_state_p;
     SearchAction_p action_p;
 
-    Node curr_node;
+    a_star::Node curr_node;
     double heuristic;
 
     while(!open_set.empty()) {
@@ -296,7 +325,7 @@ std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
             adj_state_p = std::make_shared<const SearchState>(action.execute(*curr_state_p));
             
             if(adj_state_p->isFinal()) {
-                std::cout<<"FINAL"<<std::endl;
+                std::cout<<"FINAL "<<curr_state_p->nbExpanded()<<" | "<<num_elems<<std::endl;
                 std::vector<SearchAction> path{action};
                 for (int i = 0; i < curr_node.g; i++) {
                     auto prev = history.at(curr_state_p);
@@ -308,11 +337,15 @@ std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
             }
             heuristic = compute_heuristic(*adj_state_p, *heuristic_);
             open_set.emplace(
-                Node{adj_state_p, curr_state_p, std::make_shared<SearchAction>(action),curr_node.g+1, curr_node.g + 1 + heuristic}
+                a_star::Node{adj_state_p, curr_state_p, std::make_shared<SearchAction>(action),curr_node.g+1, curr_node.g + 1 + heuristic}
                 );
             history.insert({adj_state_p, {std::make_shared<SearchAction>(action), curr_state_p}});
         }
+        size_t x = curr_state_p->nbExpanded();
+        if(x > num_elems) {
+            break;
+        }
     }
-    std::cout<<"FAIL"<<std::endl;
+    std::cout<<"FAIL "<<curr_state_p->nbExpanded()<<" | "<<num_elems<<std::endl;
     return {};
 }
