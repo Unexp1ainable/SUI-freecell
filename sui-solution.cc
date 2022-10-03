@@ -281,10 +281,17 @@ typedef struct Node {
     double f;
 } Node;
 
-struct NodeComparatorGreater {
+struct NodeComparator {
     bool operator()(const Node& lhs,
                     const Node& rhs) const {
         return (rhs.f) < (lhs.f);
+    }
+};
+
+struct SearchStatePointerComparator {
+    bool operator()(const SearchState_p& lhs,
+                    const SearchState_p& rhs) const {
+        return (*lhs) < (*rhs);
     }
 };
 
@@ -293,52 +300,50 @@ std::vector<SearchAction> AStarSearch::solve(const SearchState& init_state) {
         return {};
     }
     // priority queue sorted by f
-    std::priority_queue<Node, std::vector<Node>, NodeComparatorGreater> open_set;
+    // initialized with init_state
+    std::priority_queue<Node, std::vector<Node>, NodeComparator> open_set;
     open_set.push({std::make_shared<const SearchState>(init_state), nullptr, nullptr, 0., 0.});
 
-    // std::set<SearchState_p, NodeComparatorLess> explored;
-    std::set<SearchState> exp;
+    // set of already explored states
+    std::set<SearchState_p, SearchStatePointerComparator> exp;
+    // history map, needed for path tracing
     std::map<SearchState_p, std::pair<SearchAction_p, SearchState_p>> history;
 
-    SearchState_p curr_state, adj_p, prev_p;
+    SearchState_p curr_state_p, adj_state_p;
     SearchAction_p action_p;
 
     Node curr_node;
+    double heuristic;
+
     while (!open_set.empty()) {
         curr_node = open_set.top();  // get top object by f value
         open_set.pop();
-        curr_state = curr_node.state_p;
-        // if state already explored then we dont process it
+        curr_state_p = curr_node.state_p;
 
-        if (!exp.insert(*curr_state).second) {
+        // if state already explored then we dont process it
+        if (!exp.insert(curr_state_p).second) {
             continue;
         }
 
-        for (auto action : curr_state->actions()) {
+        for (auto action : curr_state_p->actions()) {
             // adjacent state
-            const SearchState adj_state = action.execute(*curr_state);
-            adj_p = std::make_shared<const SearchState>(adj_state);
+            adj_state_p = std::make_shared<const SearchState>(action.execute(*curr_state_p));
 
-            if (adj_state.isFinal()) {
+            if (adj_state_p->isFinal()) {
                 std::cout << "FINAL" << std::endl;
                 std::vector<SearchAction> path{action};
                 for (int i = 0; i < curr_node.g; i++) {
-                    auto prev = history.at(curr_state);
-                    curr_state = prev.second;
+                    auto prev = history.at(curr_state_p);
+                    curr_state_p = prev.second;
                     path.push_back(*(prev.first));
                 }
                 std::reverse(path.begin(), path.end());
                 return path;
             }
-
-            // SWITCH BETWEEN THESE TWO
-            double heuristic = compute_heuristic(*adj_p, *heuristic_);
-            // double heuristic = 0;
-
-            Node adj_node = {adj_p, curr_state, std::make_shared<SearchAction>(action), curr_node.g + 1, curr_node.g + 1 + heuristic};
-
-            open_set.push(adj_node);
-            history.insert({adj_p, {std::make_shared<SearchAction>(action), curr_state}});
+            heuristic = compute_heuristic(*adj_state_p, *heuristic_);
+            open_set.emplace(
+                Node{adj_state_p, curr_state_p, std::make_shared<SearchAction>(action), curr_node.g + 1, curr_node.g + 1 + heuristic});
+            history.insert({adj_state_p, {std::make_shared<SearchAction>(action), curr_state_p}});
         }
     }
     std::cout << "FAIL" << std::endl;
